@@ -55,7 +55,7 @@ export function SettingsArea({ currentFuelPrices, currentTollRates }: SettingsAr
             <div className="p-2 bg-indigo-900/20 text-indigo-500 rounded-lg">
               <Fuel className="w-5 h-5" />
             </div>
-            <h3 className="text-lg font-bold text-white">Preços de Combustível (€/L)</h3>
+            <h3 className="text-lg font-bold text-white">Preços de Combustível (€/L - S/IVA)</h3>
           </div>
           
           <div className="space-y-4">
@@ -79,7 +79,7 @@ export function SettingsArea({ currentFuelPrices, currentTollRates }: SettingsAr
             <div className="p-2 bg-indigo-900/20 text-indigo-500 rounded-lg">
               <CreditCard className="w-5 h-5" />
             </div>
-            <h3 className="text-lg font-bold text-white">Taxas de Portagem (€/Km)</h3>
+            <h3 className="text-lg font-bold text-white">Taxas de Portagem (€/Km - S/IVA)</h3>
           </div>
           
           <div className="space-y-4">

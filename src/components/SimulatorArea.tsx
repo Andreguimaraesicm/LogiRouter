@@ -285,7 +285,14 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
                       >
                         <div>
                           <p className="text-[10px] font-bold uppercase">{opt.type}</p>
-                          <p className="text-xs font-bold">{opt.distance} km • {formatCurrency(opt.tolls)}</p>
+                          <p className="text-xs font-bold">
+                            {opt.distance} km • {formatCurrency(opt.tolls)} <span className="text-[10px] text-slate-500 font-medium font-sans">(S/IVA)</span>
+                          </p>
+                          {opt.tolls > 0 && (
+                            <p className="text-[10px] text-slate-500 italic">
+                              {formatCurrency(opt.tolls * 1.23)} (C/IVA)
+                            </p>
+                          )}
                         </div>
                         {selectedRouteIdx === idx && <div className="w-2 h-2 rounded-full bg-indigo-500 ring-4 ring-indigo-500/20"></div>}
                       </button>
@@ -317,12 +324,19 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase tracking-tighter text-slate-600 ml-1">Portagens (S/IVA)</label>
-                  <input 
-                    type="number"
-                    value={tolls}
-                    onChange={e => setTolls(e.target.value)}
-                    className="w-full bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all"
-                  />
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      value={tolls}
+                      onChange={e => setTolls(e.target.value)}
+                      className="w-full bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-20"
+                    />
+                    {tolls && Number(tolls) > 0 && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/50" title="Valor com IVA (23%)">
+                        {formatCurrency(Number(tolls) * 1.23)} (C/IVA)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -397,9 +411,15 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
                           <p className="text-[10px] text-orange-500 font-bold italic">Sem combustível configurado!</p>
                         )}
 
-                        <div className="flex justify-between items-baseline">
-                          <span className="text-[11px] text-slate-400 font-medium italic">Portagens</span>
-                          <span className="text-[11px] text-slate-300 font-bold">{formatCurrency(tollTotal)}</span>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[11px] text-slate-400 font-medium italic">Portagens (S/ IVA)</span>
+                            <span className="text-[11px] text-slate-300 font-bold">{formatCurrency(tollTotal)}</span>
+                          </div>
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[11px] text-slate-500 font-medium italic">Portagens (C/ IVA)</span>
+                            <span className="text-[10px] text-slate-500 font-bold">{formatCurrency(tollTotal * 1.23)}</span>
+                          </div>
                         </div>
                       </div>
 
