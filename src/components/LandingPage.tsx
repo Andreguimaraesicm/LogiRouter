@@ -23,8 +23,17 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       await onLogin(username, password);
     } catch (err: any) {
       console.error('Login error:', err);
-      const msg = err.code || err.message || 'Erro desconhecido';
-      alert(`Erro ao entrar: ${msg}. Verifique o utilizador e palavra-passe.`);
+      let msg = err.code || err.message || 'Erro desconhecido';
+      
+      if (err.code === 'auth/operation-not-allowed') {
+        msg = 'O login com E-mail/Senha não está ativado no Firebase Console. Por favor, ative-o em Authentication > Sign-in method.';
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        msg = 'Utilizador ou palavra-passe incorretos.';
+      } else if (msg.includes('offline')) {
+        msg = 'O cliente parece estar offline. Verifique a sua ligação à internet ou as definições do Firestore.';
+      }
+      
+      alert(`Erro ao entrar: ${msg}`);
     } finally {
       setLoading(false);
     }

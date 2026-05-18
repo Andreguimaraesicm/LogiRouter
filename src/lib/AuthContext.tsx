@@ -34,40 +34,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Auth state changed:', authUser?.email);
       setUser(authUser);
       if (authUser) {
-        // Find profile by UID or username
-        const docRef = doc(db, 'users', authUser.uid);
-        let docSnap = await getDoc(docRef);
-        
-        if (!docSnap.exists()) {
-          // Fallback: check if doc exists with username as key (for pre-created users)
-          const username = authUser.email?.replace(DOMAIN, '');
-          if (username) {
-             const q = query(collection(db, 'users'), where('username', '==', username));
-             const snap = await getDocs(q);
-             if (!snap.empty) {
-               // Migration: copy to UID doc
-               const data = snap.docs[0].data();
-               await setDoc(docRef, { ...data, uid: authUser.uid });
-               docSnap = await getDoc(docRef);
+        try {
+          // Find profile by UID or username
+          const docRef = doc(db, 'users', authUser.uid);
+          let docSnap = await getDoc(docRef);
+          
+          if (!docSnap.exists()) {
+            // Fallback: check if doc exists with username as key (for pre-created users)
+            const username = authUser.email?.replace(DOMAIN, '');
+            if (username) {
+               const q = query(collection(db, 'users'), where('username', '==', username));
+               const snap = await getDocs(q);
+               if (!snap.empty) {
+                 // Migration: copy to UID doc
+                 const data = snap.docs[0].data();
+                 await setDoc(docRef, { ...data, uid: authUser.uid });
+                 docSnap = await getDoc(docRef);
+               }
+            }
+          }
+
+          if (docSnap.exists()) {
+            setProfile(docSnap.data() as UserProfile);
+          } else {
+             // Master initialization
+             if (authUser.email === `master${DOMAIN}`) {
+               const masterProfile: UserProfile = {
+                 uid: authUser.uid,
+                 username: 'master',
+                 displayName: 'Administrador Master',
+                 role: 'master',
+                 status: 'active'
+               };
+               try {
+                 // Try to persist it, but don't block if rules or network fail initially
+                 await setDoc(docRef, masterProfile);
+                 console.log('Master profile persisted');
+               } catch (masterErr) {
+                 console.warn('Could not persist Master profile:', masterErr);
+               }
+               setProfile(masterProfile);
              }
           }
-        }
-
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        } else {
-           // Master initialization
-           if (authUser.email === `master${DOMAIN}`) {
-             const masterProfile: UserProfile = {
-               uid: authUser.uid,
-               username: 'master',
-               displayName: 'Administrador Master',
-               role: 'master',
-               status: 'active'
-             };
-             await setDoc(docRef, masterProfile);
-             setProfile(masterProfile);
-           }
+        } catch (err: any) {
+          console.error('Error fetching user profile:', err);
+          // If offline, we might still have a partial profile or we just wait
         }
       } else {
         setProfile(null);
@@ -82,7 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanUsername = username.toLowerCase().trim();
     const email = `${cleanUsername}${DOMAIN}`;
     // Use a simpler but valid password for Auth
-    const authPass = pass.length < 6 ? `${pass}${pass}` : pass;
+    // Firebase Auth requires at least 6 characters for passwords.
+    // We'll pad internally to satisfy the SDK while keeping user input simple.
+    const authPass = pass.length < 6 ? pass.padEnd(6, '0') : pass;
     
     console.log(`Tentativa de login: ${cleanUsername} (${email})`);
 
@@ -116,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (!snap.empty) {
         const userData = snap.docs[0].data() as UserProfile;
+        // Search for password field (might be missing in newer records)
         if (userData.password === pass) {
           console.log('Utilizador na BD, criando Auth...');
           try {
@@ -123,8 +137,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           } catch (createErr: any) {
             if (createErr.code === 'auth/email-already-in-use') {
-              // Password must be wrong in Auth but right in Firestore?
-              // Try fixing it if we had administrative rights, but here we just throw
               throw err;
             }
             throw createErr;
@@ -159,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
-  const isMaster = profile?.role === 'master' || profile?.username === 'master';
+  const isMaster = profile?.role === 'master' || profile?.username === 'master' || user?.email === `master${DOMAIN}`;
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, login, register, logout, isMaster }}>

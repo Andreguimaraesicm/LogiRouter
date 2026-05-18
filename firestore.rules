@@ -56,7 +56,7 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.email is string && data.email.size() > 0
+      return (data.username is string && data.username.size() > 0)
         && data.role in ['admin', 'collaborator', 'driver', 'master']
         && (data.role == 'master' || data.companyId is string)
         && (data.status == null || data.status in ['active', 'disabled'])

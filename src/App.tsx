@@ -83,13 +83,32 @@ function AppContent() {
     return <LandingPage onLogin={login} isLoggingIn={false} />;
   }
 
-  // If user is logged in but no profile exists (unlikely in this design but safe to handle)
+  // If user is logged in but no profile exists
   if (!profile && !isMaster) {
     return (
       <div className="h-screen bg-slate-950 flex items-center justify-center p-8">
-        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center max-w-sm">
-          <p className="text-white mb-4">A sua conta ainda não tem um perfil associado ou está a aguardar aprovação.</p>
-          <button onClick={logout} className="text-indigo-400 font-bold hover:underline">Sair</button>
+        <div className="bg-slate-900 shadow-2xl p-8 rounded-2xl border border-slate-800 text-center max-w-sm">
+          <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="w-8 h-8 animate-spin" />
+          </div>
+          <h2 className="text-white text-xl font-bold mb-2">Conta Pendente</h2>
+          <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+            A sua conta ainda não tem um perfil associado ou está a aguardar aprovação por um administrador.
+          </p>
+          <div className="flex flex-col gap-3">
+             <button 
+               onClick={() => window.location.reload()} 
+               className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+             >
+               Tentar novamente
+             </button>
+             <button 
+               onClick={logout} 
+               className="w-full text-indigo-400 font-bold hover:text-indigo-300 py-2 border-none bg-transparent text-sm"
+             >
+               Sair da conta
+             </button>
+          </div>
         </div>
       </div>
     );
