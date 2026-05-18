@@ -31,14 +31,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (authUser) => {
+      console.log('Auth state changed:', authUser?.email);
       setUser(authUser);
       if (authUser) {
+        // Find profile by UID or username
         const docRef = doc(db, 'users', authUser.uid);
-        const docSnap = await getDoc(docRef);
+        let docSnap = await getDoc(docRef);
+        
+        if (!docSnap.exists()) {
+          // Fallback: check if doc exists with username as key (for pre-created users)
+          const username = authUser.email?.replace(DOMAIN, '');
+          if (username) {
+             const q = query(collection(db, 'users'), where('username', '==', username));
+             const snap = await getDocs(q);
+             if (!snap.empty) {
+               // Migration: copy to UID doc
+               const data = snap.docs[0].data();
+               await setDoc(docRef, { ...data, uid: authUser.uid });
+               docSnap = await getDoc(docRef);
+             }
+          }
+        }
+
         if (docSnap.exists()) {
           setProfile(docSnap.data() as UserProfile);
         } else {
-           // If user exists in Auth but not in Firestore, maybe it's the master being initialized
+           // Master initialization
            if (authUser.email === `master${DOMAIN}`) {
              const masterProfile: UserProfile = {
                uid: authUser.uid,
@@ -63,26 +81,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (username: string, pass: string) => {
     const cleanUsername = username.toLowerCase().trim();
     const email = `${cleanUsername}${DOMAIN}`;
-    // Firebase Auth requires at least 6 characters for passwords.
-    // We'll pad internally if needed to satisfy the SDK while keeping user input as is.
-    const authPass = pass.length < 6 ? pass.padEnd(6, '0') : pass;
+    // Use a simpler but valid password for Auth
+    const authPass = pass.length < 6 ? `${pass}${pass}` : pass;
     
     console.log(`Tentativa de login: ${cleanUsername} (${email})`);
 
-    // Special case for Master initialization
+    // Special case for Master
     if (cleanUsername === 'master' && pass === '4049') {
       try {
         await signInWithEmailAndPassword(auth, email, authPass);
         return;
       } catch (err: any) {
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-          console.log('Master não encontrado no Auth, a criar...');
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+          console.log('Master não autorizado ou não existe, tentando criar...');
           try {
             await createUserWithEmailAndPassword(auth, email, authPass);
             return;
           } catch (createErr: any) {
-            console.error('Erro ao criar Master:', createErr);
-            throw createErr;
+             // If user already exists but password was wrong, throw original error
+             if (createErr.code === 'auth/email-already-in-use') throw err;
+             throw createErr;
           }
         }
         throw err;
@@ -92,18 +110,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, authPass);
     } catch (err: any) {
-      console.log('Login falhou no Auth, a verificar base de dados local...', err.code);
-      // If user doesn't exist in Auth, check if they exist in Firestore with this password
+      console.log('Login falhou no Auth, verificando Firestore...', err.code);
       const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
       const snap = await getDocs(q);
       
       if (!snap.empty) {
         const userData = snap.docs[0].data() as UserProfile;
         if (userData.password === pass) {
-          console.log('Utilizador encontrado na BD local, a registar no Auth...');
-          // If password matches, create the Auth user now
-          await createUserWithEmailAndPassword(auth, email, authPass);
-          return;
+          console.log('Utilizador na BD, criando Auth...');
+          try {
+            await createUserWithEmailAndPassword(auth, email, authPass);
+            return;
+          } catch (createErr: any) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              // Password must be wrong in Auth but right in Firestore?
+              // Try fixing it if we had administrative rights, but here we just throw
+              throw err;
+            }
+            throw createErr;
+          }
         }
       }
       throw err;

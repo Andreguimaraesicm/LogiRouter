@@ -22,7 +22,9 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
     try {
       await onLogin(username, password);
     } catch (err: any) {
-      alert('Erro ao entrar: Verifique o utilizador e palavra-passe.');
+      console.error('Login error:', err);
+      const msg = err.code || err.message || 'Erro desconhecido';
+      alert(`Erro ao entrar: ${msg}. Verifique o utilizador e palavra-passe.`);
     } finally {
       setLoading(false);
     }
