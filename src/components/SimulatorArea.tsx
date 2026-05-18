@@ -52,8 +52,11 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
           const routes = await getRoute([originRes, destRes], vehicle.type, true);
           if (routes && routes.length > 0) {
             const options = routes.map((r: any, idx: number) => {
-              const baseDist = Math.round(r.distance / 1000);
-              const baseTolls = estimateTolls(r.distance, vehicle.tollClass, tollRates);
+              // Apply a circuity factor for heavy vehicles as car-based routing (OSRM) often underestimates truck distances
+              const truckFactor = vehicle.type === 'Pesado' ? 1.065 : 1.0;
+              const adjustedDistMeters = r.distance * truckFactor;
+              const baseDist = Math.round(adjustedDistMeters / 1000);
+              const baseTolls = estimateTolls(adjustedDistMeters, vehicle.tollClass, tollRates);
               
               // We simulate 3 types: FASTEST, NO_TOLLS (heuristic), MIXED
               let type = "Mista";
@@ -265,7 +268,10 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
 
               {routeOptions.length > 0 && (
                 <div className="space-y-2 pt-2">
-                  <label className="text-[9px] font-black uppercase text-slate-500 ml-1">Opções de Rota</label>
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="text-[9px] font-black uppercase text-slate-500">Opções de Rota</label>
+                    <span className="text-[8px] text-slate-600 italic">Distâncias ajustadas para {selectedVehicle?.type}</span>
+                  </div>
                   <div className="grid grid-cols-1 gap-2">
                     {routeOptions.map((opt, idx) => (
                       <button

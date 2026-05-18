@@ -1,8 +1,9 @@
 import { TollClass, VehicleType } from '../types';
 
 export async function geocodeAddress(address: string) {
+  const query = address.toLowerCase().includes('portugal') ? address : `${address}, Portugal`;
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
     const data = await response.json();
     if (data.length > 0) {
       return {
