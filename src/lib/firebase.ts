@@ -8,6 +8,10 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// Secondary app for administrative operations (creating users without logging out)
+const adminApp = initializeApp(firebaseConfig, 'admin');
+export const adminAuth = getAuth(adminApp);
+
 // Enable offline persistence
 if (typeof window !== 'undefined') {
   enableMultiTabIndexedDbPersistence(db).catch((err) => {

@@ -7,7 +7,7 @@ import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function UsersManagementArea() {
-  const { profile, isMaster } = useAuth();
+  const { profile, isMaster, register } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,20 +40,19 @@ export function UsersManagementArea() {
     if (!newUser.username || !newUser.password || !newUser.displayName) return;
     
     try {
-      // Just save to Firestore. AuthContext login handles the rest.
-      await addDoc(collection(db, 'users'), {
-        ...newUser,
-        username: newUser.username.toLowerCase().trim(),
-        companyId: profile?.companyId || 'master_tools',
-        createdAt: new Date().toISOString()
+      // Use register from AuthContext which handles Auth + Firestore
+      await register(newUser.username, newUser.password, {
+        displayName: newUser.displayName,
+        role: newUser.role,
+        companyId: profile?.companyId || 'master_tools'
       });
       
       setIsAdding(false);
       setNewUser({ username: '', password: '', displayName: '', role: 'collaborator', status: 'active' });
       alert('Utilizador criado com sucesso.');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Erro ao registar utilizador.');
+      alert(`Erro ao registar utilizador: ${err.message || 'Erro desconhecido'}`);
     }
   };
 

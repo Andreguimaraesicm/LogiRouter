@@ -3,9 +3,11 @@ import { Building, Plus, Trash2, Shield, UserPlus, X, Briefcase } from 'lucide-r
 import { collection, onSnapshot, query, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Company, Role } from '../types';
+import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function CompaniesArea() {
+  const { register } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,31 +33,28 @@ export function CompaniesArea() {
     try {
       const companyId = `comp_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Create Company
-      await setDoc(doc(db, 'companies', companyId), {
-        name: newCompany.name,
-        adminId: newCompany.adminUsername,
-        createdAt: new Date().toISOString()
-      });
-
-      // Create Admin User lookup for first login
-      // Note: we don't have a UID yet, so we'll use a predictable ID or just add to collection
-      await addDoc(collection(db, 'users'), {
-        username: newCompany.adminUsername.toLowerCase().trim(),
-        password: newCompany.adminPassword,
+      // 1. Create the Admin User in Auth and Firestore
+      // We do this first because we want the UID for the company document
+      // Note: register uses adminAuth internally to avoid logging out current user
+      await register(newCompany.adminUsername, newCompany.adminPassword, {
         displayName: newCompany.adminDisplayName || newCompany.adminUsername,
         role: 'admin',
-        companyId: companyId,
-        status: 'active',
+        companyId: companyId
+      });
+
+      // 2. Create Company document
+      await setDoc(doc(db, 'companies', companyId), {
+        name: newCompany.name,
+        adminId: newCompany.adminUsername, // We'll keep username as adminId for now to match UI, or we could find UID
         createdAt: new Date().toISOString()
       });
       
       setIsAdding(false);
       setNewCompany({ name: '', adminUsername: '', adminPassword: '', adminDisplayName: '' });
       alert('Empresa e Administrador criados com sucesso!');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Erro ao criar empresa.');
+      alert(`Erro ao criar empresa: ${err.message || 'Erro desconhecido'}`);
     }
   };
 

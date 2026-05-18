@@ -52,7 +52,7 @@ service cloud.firestore {
     // -------------------------------------------------------------------------
     function isValidCompany(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.adminId == request.auth.uid;
+        && (data.adminId is string && (data.adminId == request.auth.uid || isMaster()));
     }
 
     function isValidUser(data) {

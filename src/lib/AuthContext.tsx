@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { auth, db, adminAuth } from './firebase';
 import { UserProfile, Role } from '../types';
 
 interface AuthContextType {
@@ -124,24 +124,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithEmailAndPassword(auth, email, authPass);
     } catch (err: any) {
       console.log('Login falhou no Auth, verificando Firestore...', err.code);
-      const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
-      const snap = await getDocs(q);
       
-      if (!snap.empty) {
-        const userData = snap.docs[0].data() as UserProfile;
-        // Search for password field (might be missing in newer records)
-        if (userData.password === pass) {
-          console.log('Utilizador na BD, criando Auth...');
-          try {
-            await createUserWithEmailAndPassword(auth, email, authPass);
-            return;
-          } catch (createErr: any) {
-            if (createErr.code === 'auth/email-already-in-use') {
-              throw err;
+      // If user doesn't exist in Auth, we'll try to check Firestore
+      // but Firestore rules usually block unauthenticated reads.
+      // We'll catch that error too.
+      try {
+        const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+          const userData = snap.docs[0].data() as UserProfile;
+          if (userData.password === pass) {
+            console.log('Utilizador na BD, criando Auth...');
+            try {
+              // Note: this will log the user in
+              await createUserWithEmailAndPassword(auth, email, authPass);
+              return;
+            } catch (createErr: any) {
+              if (createErr.code === 'auth/email-already-in-use') {
+                throw err;
+              }
+              throw createErr;
             }
-            throw createErr;
           }
         }
+      } catch (fsErr) {
+        console.warn('Firestore check failed (expected if unauthenticated):', fsErr);
       }
       throw err;
     }
@@ -152,7 +160,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const email = `${cleanUsername}${DOMAIN}`;
     const authPass = pass.length < 6 ? pass.padEnd(6, '0') : pass;
     
-    const { user: authUser } = await createUserWithEmailAndPassword(auth, email, authPass);
+    // Use adminAuth to create the user without logging out the current admin
+    const { user: authUser } = await createUserWithEmailAndPassword(adminAuth, email, authPass);
+    
+    // We don't want the adminApp to stay logged in as the new user
+    await signOut(adminAuth);
     
     const userProfile: UserProfile = {
       uid: authUser.uid,

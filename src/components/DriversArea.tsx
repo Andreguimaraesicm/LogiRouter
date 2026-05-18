@@ -6,7 +6,7 @@ import { UserProfile, Role } from '../types';
 import { useAuth } from '../lib/AuthContext';
 
 export function DriversArea() {
-  const { profile, isMaster } = useAuth();
+  const { profile, isMaster, register } = useAuth();
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [newDriver, setNewDriver] = useState({ 
@@ -33,14 +33,21 @@ export function DriversArea() {
   }, [profile, isMaster]);
 
   const handleAdd = async () => {
-    if (!newDriver.displayName || !newDriver.username || !profile?.companyId) return;
-    await addDoc(collection(db, 'users'), {
-      ...newDriver,
-      username: newDriver.username.toLowerCase().trim(),
-      companyId: profile.companyId
-    });
-    setIsAdding(false);
-    setNewDriver({ username: '', displayName: '', role: 'driver', password: 'password123', status: 'active' });
+    if (!newDriver.displayName || !newDriver.username || (!profile?.companyId && !isMaster)) return;
+    
+    try {
+      await register(newDriver.username, newDriver.password, {
+        displayName: newDriver.displayName,
+        role: 'driver',
+        companyId: profile?.companyId || 'master_tools'
+      });
+      
+      setIsAdding(false);
+      setNewDriver({ username: '', displayName: '', role: 'driver', password: 'password123', status: 'active' });
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao criar motorista: ${err.message || 'Erro desconhecido'}`);
+    }
   };
 
   return (
