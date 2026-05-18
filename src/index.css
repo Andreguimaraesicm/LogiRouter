@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: var(--color-indigo-600);
+  --color-brand-hover: var(--color-indigo-500);
+  --radius-bento: 1.5rem;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100;
+  font-family: inherit;
+}
+
+.bento-card {
+  @apply bg-slate-900 border border-slate-800 rounded-(--radius-bento) shadow-xl transition-all duration-300;
+}
+
+.bento-grid {
+  @apply grid grid-cols-1 md:grid-cols-4 md:grid-rows-3 gap-4;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 rounded-full;
+}
+
+.leaflet-container {
+  @apply bg-slate-100!;
+}

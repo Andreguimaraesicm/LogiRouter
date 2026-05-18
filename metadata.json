@@ -1,0 +1,6 @@
+{
+  "name": "FleetFlow Logistics Manager",
+  "description": "A comprehensive fleet management and route optimization platform with real-time tracking, driver management, and automated reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

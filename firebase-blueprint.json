@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user roles and credentials.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["master", "manager", "driver"] },
+        "password": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["username", "role", "password"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Logistics vehicles in the fleet.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "licensePlate": { "type": "string" },
+        "tollClass": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "maintenance", "inactive"] }
+      },
+      "required": ["name", "type", "licensePlate"]
+    },
+    "Client": {
+      "title": "Client/Stop",
+      "description": "Delivery or collection point.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "contact": { "type": "string" }
+      },
+      "required": ["name", "address"]
+    },
+    "Route": {
+      "title": "Route",
+      "description": "A planned sequence of stops for a driver.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "date": { "type": "string" },
+        "stops": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
+        "totalDistance": { "type": "number" },
+        "totalTolls": { "type": "number" }
+      },
+      "required": ["driverId", "vehicleId", "date", "status"]
+    },
+    "GlobalSettings": {
+      "title": "Global Settings",
+      "description": "System-wide configuration.",
+      "type": "object",
+      "properties": {
+        "fuelPrices": { "type": "object" },
+        "tollRates": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User collection."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": "Vehicle",
+      "description": "Vehicle collection."
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Client collection."
+    },
+    "/routes/{routeId}": {
+      "schema": "Route",
+      "description": "Route collection."
+    },
+    "/settings/global": {
+      "schema": "GlobalSettings",
+      "description": "Global settings document."
+    }
+  }
+}
