@@ -96,8 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Firebase Auth requires at least 6 characters for passwords.
     // We'll pad internally to satisfy the SDK while keeping user input simple.
     const authPass = pass.length < 6 ? pass.padEnd(6, '0') : pass;
-    
-    console.log(`Tentativa de login: ${cleanUsername} (${email})`);
+    console.log(`Tentativa de login: ${cleanUsername} (${email}) - Pass len: ${pass.length}`);
 
     // Special case for Master
     if (cleanUsername === 'master' && pass === '4049') {
@@ -111,7 +110,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await createUserWithEmailAndPassword(auth, email, authPass);
             return;
           } catch (createErr: any) {
-             // If user already exists but password was wrong, throw original error
              if (createErr.code === 'auth/email-already-in-use') throw err;
              throw createErr;
           }
@@ -122,53 +120,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       await signInWithEmailAndPassword(auth, email, authPass);
+      console.log('Login Auth com sucesso');
     } catch (err: any) {
       console.log('Login falhou no Auth, verificando Firestore...', err.code);
       
-      // If user doesn't exist in Auth, we'll try to check Firestore
-      // but Firestore rules usually block unauthenticated reads.
-      // We'll catch that error too.
       try {
         const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
         const snap = await getDocs(q);
         
         if (!snap.empty) {
           const userData = snap.docs[0].data() as UserProfile;
+          console.log('Utilizador encontrado no Firestore, comparando passwords...');
           if (userData.password === pass) {
-            console.log('Utilizador na BD, criando Auth...');
+            console.log('Password Firestore correta, tentando criar/recuperar conta Auth...');
             try {
-              // Note: this will log the user in
               await createUserWithEmailAndPassword(auth, email, authPass);
               return;
             } catch (createErr: any) {
               if (createErr.code === 'auth/email-already-in-use') {
+                // If it exists in Auth but we're here, it means the password in Auth is different from the one in Firestore
+                console.warn('Conta já existe no Auth mas com password diferente da BD.');
                 throw err;
               }
               throw createErr;
             }
+          } else {
+            console.warn('Password na BD não coincide.');
           }
+        } else {
+          console.warn('Utilizador não encontrado na BD.');
         }
       } catch (fsErr) {
-        console.warn('Firestore check failed (expected if unauthenticated):', fsErr);
+        console.warn('Erro ao consultar Firestore para login:', fsErr);
       }
       throw err;
     }
   };
 
   const register = async (username: string, pass: string, data: any) => {
+    if (!username || !pass) throw new Error('Utilizador e palavra-passe são obrigatórios');
+    
     const cleanUsername = username.toLowerCase().trim();
     const email = `${cleanUsername}${DOMAIN}`;
     const authPass = pass.length < 6 ? pass.padEnd(6, '0') : pass;
     
+    console.log(`Registo: ${cleanUsername} (${email}) - Pass len: ${pass.length}`);
+    
     // Use adminAuth to create the user without logging out the current admin
     const { user: authUser } = await createUserWithEmailAndPassword(adminAuth, email, authPass);
+    console.log(`Sucesso Auth: ${authUser.uid}`);
     
-    // We don't want the adminApp to stay logged in as the new user
     await signOut(adminAuth);
     
     const userProfile: UserProfile = {
       uid: authUser.uid,
       username: cleanUsername,
+      password: pass,
       displayName: data.displayName || username,
       role: data.role || 'admin',
       companyId: data.companyId,
@@ -177,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } as any;
 
     await setDoc(doc(db, 'users', authUser.uid), userProfile);
+    console.log('Sucesso Firestore.');
   };
 
   const logout = async () => {
