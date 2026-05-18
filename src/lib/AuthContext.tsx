@@ -4,7 +4,10 @@ import {
   User, 
   signInWithEmailAndPassword, 
   signOut,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  setPersistence,
+  browserSessionPersistence,
+  indexedDBLocalPersistence
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, db, adminAuth } from './firebase';
@@ -166,25 +169,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log(`Registo: ${cleanUsername} (${email}) - Pass len: ${pass.length}`);
     
-    // Use adminAuth to create the user without logging out the current admin
-    const { user: authUser } = await createUserWithEmailAndPassword(adminAuth, email, authPass);
-    console.log(`Sucesso Auth: ${authUser.uid}`);
-    
-    await signOut(adminAuth);
-    
-    const userProfile: UserProfile = {
-      uid: authUser.uid,
-      username: cleanUsername,
-      password: pass,
-      displayName: data.displayName || username,
-      role: data.role || 'admin',
-      companyId: data.companyId,
-      status: 'active',
-      createdAt: new Date().toISOString()
-    } as any;
+    // Check if profile already exists in Firestore to avoid duplicate usernames
+    try {
+      const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        throw new Error('Este nome de utilizador já está registado. Por favor, escolha outro.');
+      }
+    } catch (err: any) {
+      if (err.message?.includes('registado')) throw err;
+      console.warn('Could not check Firestore before register:', err);
+    }
 
-    await setDoc(doc(db, 'users', authUser.uid), userProfile);
-    console.log('Sucesso Firestore.');
+    try {
+      // Use adminAuth to create the user without logging out the current admin
+      const { user: authUser } = await createUserWithEmailAndPassword(adminAuth, email, authPass);
+      console.log(`Sucesso Auth: ${authUser.uid}`);
+      
+      await signOut(adminAuth);
+      
+      const userProfile: UserProfile = {
+        uid: authUser.uid,
+        username: cleanUsername,
+        password: pass,
+        displayName: data.displayName || username,
+        role: data.role || 'admin',
+        companyId: data.companyId,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      } as any;
+
+      await setDoc(doc(db, 'users', authUser.uid), userProfile);
+      console.log('Sucesso Firestore.');
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        throw new Error('O nome de utilizador já está em uso (Firebase Auth). Tente outro.');
+      }
+      throw err;
+    }
   };
 
   const logout = async () => {
