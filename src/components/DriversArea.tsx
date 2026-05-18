@@ -3,34 +3,44 @@ import { User, Plus, Trash2, Shield, Mail } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile, Role } from '../types';
+import { useAuth } from '../lib/AuthContext';
 
-interface DriversAreaProps {
-  userRole: Role;
-}
-
-export function DriversArea({ userRole }: DriversAreaProps) {
+export function DriversArea() {
+  const { profile, isMaster } = useAuth();
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [newDriver, setNewDriver] = useState({ 
-    username: '', 
+    username: '',
     displayName: '', 
     role: 'driver' as Role, 
     password: 'password123',
-    email: '' 
+    status: 'active' as const
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), where('role', '==', 'driver'));
-    return onSnapshot(q, snap => {
+    if (!profile && !isMaster) return;
+
+    let q = query(collection(db, 'users'), where('role', '==', 'driver'));
+    if (!isMaster) {
+      q = query(q, where('companyId', '==', profile?.companyId));
+    }
+
+    const unsub = onSnapshot(q, snap => {
       setDrivers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
     });
-  }, []);
+
+    return unsub;
+  }, [profile, isMaster]);
 
   const handleAdd = async () => {
-    if (!newDriver.username || !newDriver.displayName) return;
-    await addDoc(collection(db, 'users'), newDriver);
+    if (!newDriver.displayName || !newDriver.username || !profile?.companyId) return;
+    await addDoc(collection(db, 'users'), {
+      ...newDriver,
+      username: newDriver.username.toLowerCase().trim(),
+      companyId: profile.companyId
+    });
     setIsAdding(false);
-    setNewDriver({ username: '', displayName: '', role: 'driver', password: 'password123', email: '' });
+    setNewDriver({ username: '', displayName: '', role: 'driver', password: 'password123', status: 'active' });
   };
 
   return (
@@ -57,7 +67,7 @@ export function DriversArea({ userRole }: DriversAreaProps) {
                 <User className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-white leading-tight">{driver.displayName || driver.username}</h4>
+                <h4 className="text-lg font-bold text-white leading-tight">{driver.displayName}</h4>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest">@{driver.username}</p>
               </div>
             </div>
@@ -95,33 +105,26 @@ export function DriversArea({ userRole }: DriversAreaProps) {
               <div className="space-y-1">
                 <label className="text-xs text-slate-500">Nome Completo</label>
                 <input 
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
                   value={newDriver.displayName}
                   onChange={e => setNewDriver({...newDriver, displayName: e.target.value})}
+                  placeholder="ex: João Silva"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500">Utilizador (username)</label>
+                <label className="text-xs text-slate-500">Nome de Utilizador</label>
                 <input 
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
                   value={newDriver.username}
                   onChange={e => setNewDriver({...newDriver, username: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Email</label>
-                <input 
-                  type="email"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-green-500"
-                  value={newDriver.email}
-                  onChange={e => setNewDriver({...newDriver, email: e.target.value})}
+                  placeholder="ex: jsilva"
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-slate-500">Palavra-passe Inicial</label>
                 <input 
                   type="text"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
                   value={newDriver.password}
                   onChange={e => setNewDriver({...newDriver, password: e.target.value})}
                 />

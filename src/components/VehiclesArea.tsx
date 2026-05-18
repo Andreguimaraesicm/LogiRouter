@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, Plus, Trash2, Edit2, CheckCircle2, XCircle } from 'lucide-react';
-import { collection, onSnapshot, addDoc, deleteDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, updateDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { VEHICLE_TYPES } from '../constants';
 import { Vehicle } from '../types';
+import { useAuth } from '../lib/AuthContext';
 
-export function VehiclesArea({ userRole }: { userRole?: string }) {
+export function VehiclesArea() {
+  const { profile, isMaster } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const isManager = userRole === 'master' || userRole === 'manager';
+  const isManager = profile?.role === 'admin' || profile?.role === 'master' || isMaster;
+  
   const [newVehicle, setNewVehicle] = useState({ 
     name: '', 
     type: VEHICLE_TYPES[0], 
@@ -19,25 +22,20 @@ export function VehiclesArea({ userRole }: { userRole?: string }) {
     fuels: [] as { type: string, value: number }[]
   });
 
-  const toggleFuel = (type: string, isEdit = false) => {
-    if (isEdit && editingVehicle) {
-      const fuels = [...editingVehicle.fuels];
-      const idx = fuels.findIndex(f => f.type === type);
-      if (idx > -1) {
-         fuels.splice(idx, 1);
-      } else {
-        fuels.push({ type, value: 0 });
-      }
-      setEditingVehicle({ ...editingVehicle, fuels });
-      return;
-    }
+  useEffect(() => {
+    if (!profile && !isMaster) return;
 
-    if (newVehicle.fuels.find(f => f.type === type)) {
-      setNewVehicle({ ...newVehicle, fuels: newVehicle.fuels.filter(f => f.type !== type) });
-    } else {
-      setNewVehicle({ ...newVehicle, fuels: [...newVehicle.fuels, { type, value: 0 }] });
-    }
-  };
+    const baseQuery = collection(db, 'vehicles');
+    const q = isMaster 
+      ? baseQuery 
+      : query(baseQuery, where('companyId', '==', profile?.companyId));
+
+    const unsub = onSnapshot(q, snap => {
+      setVehicles(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vehicle)));
+    });
+
+    return unsub;
+  }, [profile, isMaster]);
 
   const updateFuelValue = (type: string, value: number, isEdit = false) => {
     const val = isNaN(value) ? 0 : value;
@@ -63,12 +61,6 @@ export function VehiclesArea({ userRole }: { userRole?: string }) {
     setNewVehicle({ ...newVehicle, fuels });
   };
 
-  useEffect(() => {
-    return onSnapshot(collection(db, 'vehicles'), snap => {
-      setVehicles(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vehicle)));
-    });
-  }, []);
-
   const [isSaving, setIsSaving] = useState(false);
 
   const handleUpdate = async () => {
@@ -77,14 +69,10 @@ export function VehiclesArea({ userRole }: { userRole?: string }) {
       return;
     }
     setIsSaving(true);
-    console.log('Iniciando atualização de veículo:', editingVehicle.id, editingVehicle);
     try {
       const vehicleRef = doc(db, 'vehicles', editingVehicle.id);
-      // Create a clean copy of the data to avoid sending 'id' as a field
-      // and ensuring no undefined values are sent.
       const { id, ...data } = editingVehicle;
       
-      // Firestore doesn't like undefined, and we want to ensure everything is a plain object
       await updateDoc(vehicleRef, {
         name: data.name,
         type: data.type,
@@ -94,25 +82,27 @@ export function VehiclesArea({ userRole }: { userRole?: string }) {
         fuels: data.fuels || []
       });
       
-      console.log('Veículo atualizado no Firestore com sucesso!');
       setEditingVehicle(null);
     } catch (error: any) {
       console.error('Erro crítico ao atualizar veículo:', error);
-      alert(`Erro ao atualizar veículo: ${error.message || 'Erro de conexão/permissões'}`);
+      alert(`Erro ao atualizar veículo: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleAdd = async () => {
-    if (!newVehicle.name || !newVehicle.licensePlate) {
-      alert('Por favor preencha o nome e a matrícula do veículo.');
+    if (!newVehicle.name || !newVehicle.licensePlate || !profile?.companyId) {
+      alert('Por favor preencha os dados e certifique-se que está ligado a uma empresa.');
       return;
     }
     
     setIsSaving(true);
     try {
-      await addDoc(collection(db, 'vehicles'), newVehicle);
+      await addDoc(collection(db, 'vehicles'), {
+        ...newVehicle,
+        companyId: profile.companyId
+      });
       setIsAdding(false);
       setNewVehicle({ 
         name: '', 
@@ -123,8 +113,7 @@ export function VehiclesArea({ userRole }: { userRole?: string }) {
         fuels: []
       });
     } catch (error) {
-      console.error("Error adding vehicle:", error);
-      alert('Erro ao guardar veículo. Verifique a sua ligação ou permissões.');
+      alert('Erro ao guardar veículo.');
     } finally {
       setIsSaving(false);
     }

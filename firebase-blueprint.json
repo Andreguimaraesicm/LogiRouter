@@ -1,89 +1,119 @@
 {
   "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Enterprise tenant profile.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "taxId": { "type": "string" },
+        "adminId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "adminId"]
+    },
     "UserProfile": {
       "title": "User Profile",
-      "description": "Stores user roles and credentials.",
+      "description": "Stores user roles and company affiliation.",
       "type": "object",
       "properties": {
         "username": { "type": "string" },
-        "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["master", "manager", "driver"] },
         "password": { "type": "string" },
-        "email": { "type": "string" }
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "collaborator", "driver", "master"] },
+        "companyId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "disabled"] },
+        "permissions": { "type": "array" }
       },
-      "required": ["username", "role", "password"]
+      "required": ["username", "password", "role"]
     },
     "Vehicle": {
       "title": "Vehicle",
-      "description": "Logistics vehicles in the fleet.",
+      "description": "Logistics vehicles, company-scoped.",
       "type": "object",
       "properties": {
+        "companyId": { "type": "string" },
         "name": { "type": "string" },
         "type": { "type": "string" },
         "licensePlate": { "type": "string" },
         "tollClass": { "type": "integer" },
+        "fuels": { "type": "array" },
         "status": { "type": "string", "enum": ["active", "maintenance", "inactive"] }
       },
-      "required": ["name", "type", "licensePlate"]
+      "required": ["companyId", "name", "type", "licensePlate"]
     },
-    "Client": {
-      "title": "Client/Stop",
-      "description": "Delivery or collection point.",
+    "Route": {
+      "title": "Route",
+      "description": "A scheduled route with tracking capabilities.",
       "type": "object",
       "properties": {
+        "companyId": { "type": "string" },
+        "driverId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "status": { "type": "string", "enum": ["planned", "dispatching", "in_transit", "completed", "cancelled"] },
+        "plannedStops": { "type": "array" },
+        "actualStops": { "type": "array" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "totalDistance": { "type": "number" },
+        "totalCost": { "type": "number" }
+      },
+      "required": ["companyId", "driverId", "vehicleId", "status"]
+    },
+    "RouteEvent": {
+      "title": "Route Event",
+      "description": "Timeline events for a route.",
+      "type": "object",
+      "properties": {
+        "routeId": { "type": "string" },
+        "stopId": { "type": "string" },
+        "type": { "type": "string", "enum": ["arrival", "load_start", "load_end", "unload_start", "unload_end", "departure", "delay"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "location": { "type": "object" },
+        "notes": { "type": "string" }
+      }
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Customer address database.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string" },
         "name": { "type": "string" },
         "address": { "type": "string" },
         "lat": { "type": "number" },
         "lng": { "type": "number" },
-        "contact": { "type": "string" }
+        "contact": { "type": "string" },
+        "lastVisited": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "address"]
-    },
-    "Route": {
-      "title": "Route",
-      "description": "A planned sequence of stops for a driver.",
-      "type": "object",
-      "properties": {
-        "driverId": { "type": "string" },
-        "vehicleId": { "type": "string" },
-        "date": { "type": "string" },
-        "stops": { "type": "array" },
-        "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
-        "totalDistance": { "type": "number" },
-        "totalTolls": { "type": "number" }
-      },
-      "required": ["driverId", "vehicleId", "date", "status"]
-    },
-    "GlobalSettings": {
-      "title": "Global Settings",
-      "description": "System-wide configuration.",
-      "type": "object",
-      "properties": {
-        "fuelPrices": { "type": "object" },
-        "tollRates": { "type": "object" }
-      }
+      "required": ["companyId", "name", "address"]
     }
   },
   "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Main company profile."
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User collection."
+      "description": "Global user registry."
     },
     "/vehicles/{vehicleId}": {
       "schema": "Vehicle",
-      "description": "Vehicle collection."
-    },
-    "/clients/{clientId}": {
-      "schema": "Client",
-      "description": "Client collection."
+      "description": "Vehicles collection partitioned by companyId."
     },
     "/routes/{routeId}": {
       "schema": "Route",
-      "description": "Route collection."
+      "description": "Routes tracking."
     },
-    "/settings/global": {
-      "schema": "GlobalSettings",
-      "description": "Global settings document."
+    "/routes/{routeId}/events/{eventId}": {
+      "schema": "RouteEvent",
+      "description": "Detailed event logs for audit."
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Reusable client addresses."
     }
   }
 }

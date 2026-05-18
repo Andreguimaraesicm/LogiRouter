@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   MapPin, Truck, User, LogOut, Users, BarChart3, 
-  Settings, Calculator, Package, Menu, X, Wifi, WifiOff
+  Settings, Calculator, Package, Menu, X, Wifi, WifiOff, Building
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { cn } from '../lib/utils';
@@ -20,18 +20,31 @@ export function Sidebar({
 }: SidebarProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const menuItems = [
-    { id: 'plan', label: 'Planeamento', icon: MapPin, color: 'text-blue-500' },
-    { id: 'drivers', label: 'Motoristas', icon: User, color: 'text-green-500' },
-    { id: 'vehicles', label: 'Veículos', icon: Truck, color: 'text-purple-500' },
-    { id: 'clients', label: 'Clientes', icon: Package, color: 'text-orange-500' },
-    { id: 'reports', label: 'Relatórios', icon: BarChart3, color: 'text-yellow-500' },
-    { id: 'simulator', label: 'Simulador', icon: Calculator, color: 'text-pink-500' },
-    { id: 'settings', label: 'Definições', icon: Settings, color: 'text-gray-400' },
-  ];
+  let menuItems = [];
 
-  if (user.role === 'master') {
-    menuItems.splice(4, 0, { id: 'users', label: 'Utilizadores', icon: Users, color: 'text-red-500' });
+  if (user.role === 'driver') {
+    menuItems = [
+      { id: 'my-routes', label: 'As Minhas Rotas', icon: MapPin, color: 'text-indigo-500' },
+      { id: 'settings', label: 'Definições', icon: Settings, color: 'text-gray-400' },
+    ];
+  } else {
+    menuItems = [
+      { id: 'plan', label: 'Planeamento', icon: MapPin, color: 'text-blue-500' },
+      { id: 'drivers', label: 'Motoristas', icon: User, color: 'text-green-500' },
+      { id: 'vehicles', label: 'Veículos', icon: Truck, color: 'text-purple-500' },
+      { id: 'clients', label: 'Clientes', icon: Package, color: 'text-orange-500' },
+      { id: 'reports', label: 'Relatórios', icon: BarChart3, color: 'text-yellow-500' },
+      { id: 'simulator', label: 'Simulador', icon: Calculator, color: 'text-pink-500' },
+      { id: 'settings', label: 'Definições', icon: Settings, color: 'text-gray-400' },
+    ];
+
+    if (user.role === 'admin' || user.role === 'master') {
+      menuItems.splice(4, 0, { id: 'users', label: 'Utilizadores', icon: Users, color: 'text-red-500' });
+    }
+
+    if (user.role === 'master') {
+      menuItems.splice(1, 0, { id: 'companies', label: 'Empresas', icon: Building, color: 'text-cyan-500' });
+    }
   }
 
   const toggleSidebar = () => setIsOpen(!isOpen);
@@ -111,11 +124,11 @@ export function Sidebar({
           </div>
           <div className="flex items-center gap-3 p-2 bg-slate-800/40 rounded-xl mb-4">
             <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
-              {user.username.slice(0, 3).toUpperCase()}
+              {(user.displayName || user.username || 'U')[0].toUpperCase()}
             </div>
             <div className="overflow-hidden">
               <p className="text-sm font-semibold text-white truncate">{user.displayName || user.username}</p>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest">{user.role}</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">{user.role} • @{user.username}</p>
             </div>
           </div>
           <button 

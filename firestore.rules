@@ -1,18 +1,26 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ---- Global Safety Net ----
+    // -------------------------------------------------------------------------
+    // 1. Global Safety Net
+    // -------------------------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // ---- Helper Functions ----
+    // -------------------------------------------------------------------------
+    // 2. Global Helpers
+    // -------------------------------------------------------------------------
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isEmailVerified() {
-      return request.auth.token.email_verified == true;
+
+    function isMaster() {
+      return isSignedIn() && (
+        request.auth.token.email == 'andreguimaraesicm@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'master'
+      );
     }
 
     function getUserData() {
@@ -23,12 +31,8 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == role;
     }
 
-    function isMaster() {
-      return hasRole('master') || request.auth.token.email == 'andreguimaraesicm@gmail.com';
-    }
-
-    function isManager() {
-      return isMaster() || hasRole('manager');
+    function getCompanyId() {
+      return getUserData().companyId;
     }
 
     function isValidId(id) {
@@ -43,54 +47,117 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // ---- Entity Validators ----
+    // -------------------------------------------------------------------------
+    // 3. Entity Validators
+    // -------------------------------------------------------------------------
+    function isValidCompany(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.adminId == request.auth.uid;
+    }
+
     function isValidUser(data) {
-      return data.username is string && data.username.size() < 100 &&
-             data.role in ['master', 'manager', 'driver'] &&
-             data.displayName is string;
+      return data.email is string && data.email.size() > 0
+        && data.role in ['admin', 'collaborator', 'driver', 'master']
+        && (data.role == 'master' || data.companyId is string)
+        && (data.status == null || data.status in ['active', 'disabled'])
+        && (data.permissions == null || data.permissions is list);
+    }
+
+    function isValidVehicle(data) {
+      return data.companyId == getCompanyId()
+        && data.name is string && data.name.size() > 0
+        && data.licensePlate is string && data.licensePlate.size() > 0
+        && data.type is string
+        && (data.status == null || data.status in ['active', 'maintenance', 'inactive']);
     }
 
     function isValidRoute(data) {
-      return data.driverId is string && data.vehicleId is string &&
-             data.status in ['pending', 'in_progress', 'completed'];
+      return data.companyId == getCompanyId()
+        && data.driverId is string
+        && data.status in ['planned', 'dispatching', 'in_transit', 'completed', 'cancelled'];
     }
 
-    // ---- Collection Rules ----
-    match /{allPaths=**} {
-      allow read, write: if true; // Temporarily allow for development due to custom auth bypass
+    function isValidEvent(data, routeId) {
+      return data.routeId == routeId
+        && data.type in ['arrival', 'load_start', 'load_end', 'unload_start', 'unload_end', 'departure', 'delay']
+        && data.timestamp is timestamp;
     }
 
+    function isValidClient(data) {
+      return data.companyId == getCompanyId()
+        && data.name is string && data.name.size() > 0
+        && data.address is string && data.address.size() > 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Collection Matches
+    // -------------------------------------------------------------------------
+    
+    // Companies
+    match /companies/{companyId} {
+      allow get: if isSignedIn();
+      allow list: if isMaster();
+      allow create: if isSignedIn() && isValidCompany(incoming());
+      allow update: if isSignedIn() && (isMaster() || existing().adminId == request.auth.uid || (hasRole('admin') && getCompanyId() == companyId)) && isValidCompany(incoming());
+    }
+
+    // Users
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isManager());
-      allow list: if isManager();
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
-      allow update: if (isMaster() || (request.auth.uid == userId && isValidUser(incoming()))) && 
-                    (incoming().role == existing().role || isMaster()); // Only master can change roles
+      allow get: if isSignedIn() && (request.auth.uid == userId || getCompanyId() == existing().companyId || isMaster());
+      allow list: if isSignedIn() && (hasRole('admin') || isMaster());
+      allow create: if isSignedIn() && (request.auth.uid == userId || hasRole('admin') || isMaster());
+      allow update: if isSignedIn() && (
+        isMaster() ||
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email'])) ||
+        (hasRole('admin') && existing().companyId == getCompanyId() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'status', 'permissions']))
+      );
     }
 
+    // Vehicles
     match /vehicles/{vehicleId} {
-      allow read: if isSignedIn();
-      allow write: if isManager();
+      allow read: if isSignedIn() && (resource.data.companyId == getCompanyId() || isMaster());
+      allow create: if isSignedIn() && (hasRole('admin') || hasRole('collaborator') || isMaster()) && isValidVehicle(incoming());
+      allow update: if isSignedIn() && (hasRole('admin') || hasRole('collaborator') || isMaster()) && (existing().companyId == getCompanyId() || isMaster()) && isValidVehicle(incoming());
+      allow delete: if isSignedIn() && (hasRole('admin') || isMaster()) && (existing().companyId == getCompanyId() || isMaster());
     }
 
-    match /clients/{clientId} {
-      allow read: if isSignedIn();
-      allow write: if isManager();
-    }
-
+    // Routes
     match /routes/{routeId} {
-      allow read: if isSignedIn() && (isManager() || existing().driverId == request.auth.uid);
-      allow create: if isManager() && isValidRoute(incoming());
-      allow update: if (isManager() && isValidRoute(incoming())) ||
-                    (isSignedIn() && existing().driverId == request.auth.uid && 
-                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'stops']) && 
-                     isValidRoute(incoming()));
-      allow delete: if isManager();
+      allow read: if isSignedIn() && (
+        resource.data.companyId == getCompanyId() ||
+        (hasRole('driver') && resource.data.driverId == request.auth.uid) ||
+        isMaster()
+      );
+      allow create: if isSignedIn() && (hasRole('admin') || hasRole('collaborator') || isMaster()) && isValidRoute(incoming());
+      allow update: if isSignedIn() && (
+        (isMaster() || (existing().companyId == getCompanyId() && (hasRole('admin') || hasRole('collaborator')))) && isValidRoute(incoming()) ||
+        (existing().driverId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actualStops']))
+      );
+      allow delete: if isSignedIn() && (hasRole('admin') || isMaster());
     }
 
-    match /settings/global {
-      allow read: if true;
-      allow write: if true; // allow write for now as the app uses a custom bypass login
+    // Route Events (Sub-collection)
+    match /routes/{routeId}/events/{eventId} {
+      allow read: if isSignedIn() && (get(/databases/$(database)/documents/routes/$(routeId)).data.companyId == getCompanyId() || isMaster());
+      allow create: if isSignedIn() && (
+        get(/databases/$(database)/documents/routes/$(routeId)).data.driverId == request.auth.uid ||
+        get(/databases/$(database)/documents/routes/$(routeId)).data.companyId == getCompanyId() ||
+        isMaster()
+      ) && isValidEvent(incoming(), routeId);
+    }
+
+    // Clients
+    match /clients/{clientId} {
+      allow read: if isSignedIn() && (resource.data.companyId == getCompanyId() || isMaster());
+      allow create: if isSignedIn() && (hasRole('admin') || hasRole('collaborator') || isMaster()) && isValidClient(incoming());
+      allow update: if isSignedIn() && (hasRole('admin') || hasRole('collaborator') || isMaster()) && (existing().companyId == getCompanyId() || isMaster()) && isValidClient(incoming());
+      allow delete: if isSignedIn() && (hasRole('admin') || isMaster()) && (existing().companyId == getCompanyId() || isMaster());
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if isSignedIn() && (settingId == 'global' || settingId == getCompanyId() || isMaster());
+      allow write: if isSignedIn() && (isMaster() || (settingId == getCompanyId() && hasRole('admin')));
     }
   }
 }

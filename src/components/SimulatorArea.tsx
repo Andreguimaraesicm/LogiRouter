@@ -135,9 +135,10 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
     }
 
     const totalCost = fuelTotalCost + tollTotal;
-    const recommendedRevenue = totalCost / (1 - profitMargin / 100);
+    const recommendations = totalCost / (1 - profitMargin / 100);
+    const profit = recommendations - totalCost;
 
-    return { totalCost, fuelTotalCost, tollTotal, fuelBreakdown, recommendedRevenue };
+    return { totalCost, fuelTotalCost, tollTotal, fuelBreakdown, recommendedRevenue: recommendations, profit };
   };
 
   return (
@@ -367,7 +368,7 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {simulatedEntries.map(entry => {
-                  const { totalCost, fuelBreakdown, tollTotal, recommendedRevenue } = calculateCosts(entry);
+                  const { totalCost, fuelBreakdown, tollTotal, recommendedRevenue, profit } = calculateCosts(entry);
                   const kmTotal = entry.roundTrip ? entry.distance * 2 : entry.distance;
 
                   return (
@@ -429,6 +430,10 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
                           <p className="text-2xl font-black text-indigo-400">{formatCurrency(recommendedRevenue)}</p>
                         </div>
                         <div className="text-right">
+                          <p className="text-[9px] text-emerald-500 uppercase font-black tracking-widest mb-1">Lucro Est.</p>
+                          <p className="text-sm font-bold text-emerald-400">{formatCurrency(profit)}</p>
+                        </div>
+                        <div className="text-right">
                           <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Custo Total Est.</p>
                           <p className="text-sm font-bold text-white">{formatCurrency(totalCost)}</p>
                         </div>
@@ -454,6 +459,12 @@ export function SimulatorArea({ fuelPrices, tollRates }: any) {
                     <p className="text-[10px] text-indigo-400/70 font-black uppercase tracking-widest mb-2">Volume de Negócios Prep.</p>
                     <p className="text-4xl font-black text-indigo-500">
                       {formatCurrency(simulatedEntries.reduce((acc, entry) => acc + calculateCosts(entry).recommendedRevenue, 0))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-emerald-400/70 font-black uppercase tracking-widest mb-2">Lucro Total Limpo</p>
+                    <p className="text-4xl font-black text-emerald-500">
+                      {formatCurrency(simulatedEntries.reduce((acc, entry) => acc + calculateCosts(entry).profit, 0))}
                     </p>
                   </div>
                 </div>

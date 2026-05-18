@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Settings, Save, Fuel, CreditCard, Loader2 } from 'lucide-react';
+import { Settings, Save, Fuel, CreditCard, Loader2, Globe, Building } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../lib/AuthContext';
 
 interface SettingsAreaProps {
   currentFuelPrices: any;
@@ -9,34 +10,32 @@ interface SettingsAreaProps {
 }
 
 export function SettingsArea({ currentFuelPrices, currentTollRates }: SettingsAreaProps) {
+  const { profile, isMaster } = useAuth();
   const [fuel, setFuel] = useState(currentFuelPrices);
   const [tolls, setTolls] = useState(currentTollRates);
   const [saving, setSaving] = useState(false);
+  const [isGlobal, setIsGlobal] = useState(isMaster);
 
-  // Update local state when global settings are loaded from Firestore
   React.useEffect(() => {
     if (currentFuelPrices) setFuel(currentFuelPrices);
     if (currentTollRates) setTolls(currentTollRates);
   }, [currentFuelPrices, currentTollRates]);
 
   const handleSave = async () => {
-    if (!fuel || !tolls) {
-      alert('Dados de configuração inválidos.');
-      return;
-    }
+    if (!fuel || !tolls) return;
+    const targetId = isGlobal && isMaster ? 'global' : profile?.companyId;
+    if (!targetId) return;
+
     setSaving(true);
-    console.log('Iniciando salvamento de configurações:', { fuel, tolls });
     try {
-      const docRef = doc(db, 'settings', 'global');
+      const docRef = doc(db, 'settings', targetId);
       await setDoc(docRef, {
         fuelPrices: fuel,
         tollRates: tolls
       }, { merge: true });
-      console.log('Configurações salvas com sucesso!');
       alert('Configurações guardadas com sucesso!');
     } catch (error: any) {
-      console.error('Erro ao salvar as configurações:', error);
-      alert(`Erro ao guardar configurações: ${error.message || 'Erro desconhecido'}`);
+      alert(`Erro ao guardar configurações: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -44,9 +43,29 @@ export function SettingsArea({ currentFuelPrices, currentTollRates }: SettingsAr
 
   return (
     <div className="max-w-4xl space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Configurações Globais</h2>
-        <p className="text-slate-400 text-sm">Ajuste os parâmetros de cálculo do sistema</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-white tracking-tight uppercase tracking-[0.2em]">Configurações</h2>
+          <p className="text-slate-500 text-sm">Parâmetros operacionais da {isGlobal ? 'Plataforma' : 'Empresa'}</p>
+        </div>
+        {isMaster && (
+          <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-2xl">
+            <button 
+              onClick={() => setIsGlobal(true)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isGlobal ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Global
+            </button>
+            <button 
+              onClick={() => setIsGlobal(false)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isGlobal ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <Building className="w-3.5 h-3.5" />
+              Empresa
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
