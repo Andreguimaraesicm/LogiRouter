@@ -53,8 +53,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                const snap = await getDocs(q);
                if (!snap.empty) {
                  // Migration: copy to UID doc
-                 const data = snap.docs[0].data();
+                 const matchedDoc = snap.docs[0];
+                 const data = matchedDoc.data();
                  await setDoc(docRef, { ...data, uid: authUser.uid });
+                 
+                 // If the document that matched had a username/ID that is NOT the UID, delete it to keep DB clean
+                 if (matchedDoc.id !== authUser.uid) {
+                   try {
+                     await deleteDoc(matchedDoc.ref);
+                     console.log(`Successfully migrated and cleaned up username doc: ${matchedDoc.id}`);
+                   } catch (delErr) {
+                     console.warn('Could not delete old username doc:', delErr);
+                   }
+                 }
+                 
                  docSnap = await getDoc(docRef);
                }
             }
@@ -205,35 +217,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      let authUser;
-      try {
-        onStepChange?.('Criar credenciais de acesso seguro...');
-        // Use adminAuth to create the user without logging out the current admin
-        const cred = await createUserWithEmailAndPassword(adminAuth, email, authPass);
-        authUser = cred.user;
-        console.log(`Sucesso Auth (Novo): ${authUser.uid}`);
-      } catch (authErr: any) {
-        const errorCode = authErr.code || (authErr.message?.includes('email-already-in-use') ? 'auth/email-already-in-use' : null);
-        if (errorCode === 'auth/email-already-in-use') {
-          onStepChange?.('Utilizador já existe no sistema de autenticação. A associar...');
-          console.log(`Utilizador ${email} já existe no Firebase Auth. A tentar autenticaçao para associar...`);
-          try {
-            const cred = await signInWithEmailAndPassword(adminAuth, email, authPass);
-            authUser = cred.user;
-            console.log(`Sucesso Auth (Existente com password coincidente): ${authUser.uid}`);
-          } catch (loginErr) {
-            throw new Error(`O utilizador "${cleanUsername}" já tem uma conta de acesso criada com uma palavra-passe diferente. Por favor, forneça a palavra-passe correta ou use um nome de administrador diferente.`);
-          }
-        } else {
-          throw authErr;
-        }
-      }
-      
-      onStepChange?.('Finalizar as credenciais administrativas...');
-      await signOut(adminAuth);
-      
       const userProfile: UserProfile = {
-        uid: authUser.uid,
+        uid: cleanUsername, // Fallback UID initially, will be migrated to authenticating UID on first sign in
         username: cleanUsername,
         password: pass,
         displayName: data.displayName || username,
@@ -244,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } as any;
 
       onStepChange?.('Criar perfil do utilizador na Base de Dados...');
-      await setDoc(doc(db, 'users', authUser.uid), userProfile);
+      await setDoc(doc(db, 'users', cleanUsername), userProfile);
       console.log('Sucesso Firestore.');
     } catch (err: any) {
       throw err;
