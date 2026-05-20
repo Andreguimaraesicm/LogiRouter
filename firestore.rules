@@ -106,22 +106,28 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (
         request.auth.uid == userId || 
+        request.auth.token.email == userId + '@frotas.local' ||
         isMaster() || 
-        (request.auth.uid != userId && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == existing().companyId)
+        (request.auth.uid != userId && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == existing().companyId)
       );
       allow list: if isSignedIn() && (
         isMaster() || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
       allow create: if isSignedIn() && (
         request.auth.uid == userId || 
         isMaster() || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
       allow update: if isSignedIn() && (
         isMaster() ||
         (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email'])) ||
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' && existing().companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'status', 'permissions']))
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' && existing().companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'status', 'permissions']))
+      );
+      allow delete: if isSignedIn() && (
+        isMaster() ||
+        request.auth.token.email == userId + '@frotas.local' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 

@@ -49,19 +49,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Fallback: check if doc exists with username as key (for pre-created users)
             const username = authUser.email?.replace(DOMAIN, '');
             if (username) {
-               const q = query(collection(db, 'users'), where('username', '==', username));
-               const snap = await getDocs(q);
-               if (!snap.empty) {
+               const usernameDocRef = doc(db, 'users', username);
+               const usernameDocSnap = await getDoc(usernameDocRef);
+               if (usernameDocSnap.exists()) {
                  // Migration: copy to UID doc
-                 const matchedDoc = snap.docs[0];
-                 const data = matchedDoc.data();
+                 const data = usernameDocSnap.data();
                  await setDoc(docRef, { ...data, uid: authUser.uid });
                  
                  // If the document that matched had a username/ID that is NOT the UID, delete it to keep DB clean
-                 if (matchedDoc.id !== authUser.uid) {
+                 if (username !== authUser.uid) {
                    try {
-                     await deleteDoc(matchedDoc.ref);
-                     console.log(`Successfully migrated and cleaned up username doc: ${matchedDoc.id}`);
+                     await deleteDoc(usernameDocRef);
+                     console.log(`Successfully migrated and cleaned up username doc: ${username}`);
                    } catch (delErr) {
                      console.warn('Could not delete old username doc:', delErr);
                    }
