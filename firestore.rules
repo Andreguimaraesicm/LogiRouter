@@ -25,7 +25,9 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {'role': 'none', 'companyId': 'none'};
     }
 
     function hasRole(role) {
@@ -52,8 +54,7 @@ service cloud.firestore {
     // 3. Entity Validators
     // -------------------------------------------------------------------------
     function isValidCompany(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && (data.adminId is string && (data.adminId == request.auth.uid || isMaster()));
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100;
     }
 
     function isValidUser(data) {
@@ -96,10 +97,9 @@ service cloud.firestore {
     
     // Companies
     match /companies/{companyId} {
-      allow get: if isSignedIn();
-      allow list: if isMaster();
-      allow create: if isSignedIn() && isValidCompany(incoming());
-      allow update: if isSignedIn() && (isMaster() || existing().adminId == request.auth.uid || (hasRole('admin') && getCompanyId() == companyId)) && isValidCompany(incoming());
+      allow read: if true;
+      allow create, update: if isSignedIn() && isValidCompany(incoming());
+      allow delete: if isSignedIn();
     }
 
     // Users

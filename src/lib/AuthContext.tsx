@@ -203,9 +203,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Use adminAuth to create the user without logging out the current admin
-      const { user: authUser } = await createUserWithEmailAndPassword(adminAuth, email, authPass);
-      console.log(`Sucesso Auth: ${authUser.uid}`);
+      let authUser;
+      try {
+        // Use adminAuth to create the user without logging out the current admin
+        const cred = await createUserWithEmailAndPassword(adminAuth, email, authPass);
+        authUser = cred.user;
+        console.log(`Sucesso Auth (Novo): ${authUser.uid}`);
+      } catch (authErr: any) {
+        const errorCode = authErr.code || (authErr.message?.includes('email-already-in-use') ? 'auth/email-already-in-use' : null);
+        if (errorCode === 'auth/email-already-in-use') {
+          console.log(`Utilizador ${email} já existe no Firebase Auth. A tentar autenticaçao para associar...`);
+          try {
+            const cred = await signInWithEmailAndPassword(adminAuth, email, authPass);
+            authUser = cred.user;
+            console.log(`Sucesso Auth (Existente com password coincidente): ${authUser.uid}`);
+          } catch (loginErr) {
+            throw new Error(`O utilizador "${cleanUsername}" já tem uma conta de acesso criada com uma palavra-passe diferente. Por favor, forneça a palavra-passe correta ou use um nome de administrador diferente.`);
+          }
+        } else {
+          throw authErr;
+        }
+      }
       
       await signOut(adminAuth);
       
@@ -223,11 +241,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', authUser.uid), userProfile);
       console.log('Sucesso Firestore.');
     } catch (err: any) {
-      const errorCode = err.code || (err.message?.includes('email-already-in-use') ? 'auth/email-already-in-use' : null);
-      
-      if (errorCode === 'auth/email-already-in-use') {
-        throw new Error(`O utilizador "${cleanUsername}" já tem uma conta de acesso criada. Use um nome diferente para o novo administrador.`);
-      }
       throw err;
     }
   };
