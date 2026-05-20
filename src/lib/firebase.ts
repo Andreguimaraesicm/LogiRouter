@@ -6,7 +6,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // Secondary app for administrative operations (creating users without logging out)
 // We use a different name 'admin' so it doesn't share state with the default app
