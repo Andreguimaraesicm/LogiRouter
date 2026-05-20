@@ -78,4 +78,6 @@ export interface Company {
   name: string;
   adminId: string;
   createdAt: string;
+  logoUrl?: string;
+  slug?: string;
 }

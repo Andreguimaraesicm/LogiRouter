@@ -9,16 +9,18 @@ import {
   browserSessionPersistence,
   indexedDBLocalPersistence
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { auth, db, adminAuth } from './firebase';
-import { UserProfile, Role } from '../types';
+import { UserProfile, Role, Company } from '../types';
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  company: Company | null;
   loading: boolean;
   login: (username: string, pass: string) => Promise<void>;
   register: (username: string, pass: string, data: any) => Promise<void>;
+  deleteUserAccount: (uid: string) => Promise<void>;
   logout: () => Promise<void>;
   isMaster: boolean;
 }
@@ -30,6 +32,7 @@ const DOMAIN = '@frotas.local';
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,7 +61,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
+            const up = docSnap.data() as UserProfile;
+            setProfile(up);
+            if (up.companyId) {
+              const cRef = doc(db, 'companies', up.companyId);
+              const cSnap = await getDoc(cRef);
+              if (cSnap.exists()) {
+                setCompany({ id: cSnap.id, ...cSnap.data() } as Company);
+              }
+            }
           } else {
              // Master initialization
              if (authUser.email === `master${DOMAIN}`) {
@@ -85,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setProfile(null);
+        setCompany(null);
       }
       setLoading(false);
     });
@@ -174,11 +186,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        throw new Error('Este nome de utilizador já está registado. Por favor, escolha outro.');
+        throw new Error(`O utilizador "${cleanUsername}" já existe no sistema. Escolha outro nome.`);
+      }
+
+      // If a slug is provided, check if it's already taken
+      if (data.slug) {
+        const qSlug = query(collection(db, 'companies'), where('slug', '==', data.slug.toLowerCase()));
+        const snapSlug = await getDocs(qSlug);
+        if (!snapSlug.empty) {
+          throw new Error(`O domínio/slug "${data.slug}" já está em uso por outra empresa.`);
+        }
       }
     } catch (err: any) {
-      if (err.message?.includes('registado')) throw err;
-      console.warn('Could not check Firestore before register:', err);
+      if (err.message?.includes('já existe') || err.message?.includes('em uso')) throw err;
+      console.warn('Could not check uniqueness before register:', err);
     }
 
     try {
@@ -202,9 +223,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', authUser.uid), userProfile);
       console.log('Sucesso Firestore.');
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        throw new Error('O nome de utilizador já está em uso (Firebase Auth). Tente outro.');
+      const errorCode = err.code || (err.message?.includes('email-already-in-use') ? 'auth/email-already-in-use' : null);
+      
+      if (errorCode === 'auth/email-already-in-use') {
+        throw new Error(`O utilizador "${cleanUsername}" já tem uma conta de acesso criada. Use um nome diferente para o novo administrador.`);
       }
+      throw err;
+    }
+  };
+
+  const deleteUserAccount = async (uid: string) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const uData = userSnap.data() as UserProfile;
+        if (uData.username && uData.password) {
+          const email = `${uData.username.toLowerCase().trim()}${DOMAIN}`;
+          const authPass = uData.password.length < 6 ? uData.password.padEnd(6, '0') : uData.password;
+          
+          try {
+            console.log(`Tentando eliminar do Auth: ${email}`);
+            const credentials = await signInWithEmailAndPassword(adminAuth, email, authPass);
+            if (credentials.user) {
+              await credentials.user.delete();
+              console.log('Utilizador eliminado do Firebase Auth com sucesso.');
+            }
+          } catch (authErr) {
+            console.warn('Não foi possível remover utilizador do Firebase Auth (pode não existir no Auth):', authErr);
+          }
+        }
+      }
+      await deleteDoc(userRef);
+      console.log('Utilizador desassociado e apagado do Firestore com sucesso.');
+    } catch (err: any) {
+      console.error('Erro ao eliminar conta:', err);
       throw err;
     }
   };
@@ -216,7 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isMaster = profile?.role === 'master' || profile?.username === 'master' || user?.email === `master${DOMAIN}`;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, isMaster }}>
+    <AuthContext.Provider value={{ user, profile, company, loading, login, register, deleteUserAccount, logout, isMaster }}>
       {children}
     </AuthContext.Provider>
   );

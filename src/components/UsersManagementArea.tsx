@@ -7,7 +7,7 @@ import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function UsersManagementArea() {
-  const { profile, isMaster, register } = useAuth();
+  const { profile, isMaster, register, deleteUserAccount } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,14 @@ export function UsersManagementArea() {
                   <td className="px-6 py-5 text-right">
                     <button 
                       onClick={async () => {
-                        if(confirm('Revogar todos os acessos deste utilizador?')) await deleteDoc(doc(db, 'users', user.uid));
+                        if (confirm('Deseja realmente apagar este utilizador de forma definitiva do sistema (incluindo acessos de login)?')) {
+                          try {
+                            await deleteUserAccount(user.uid);
+                            alert('Utilizador apagado com sucesso.');
+                          } catch (err: any) {
+                            alert('Erro ao apagar utilizador: ' + (err.message || err));
+                          }
+                        }
                       }}
                       className="text-slate-700 hover:text-rose-500 transition-all p-2 rounded-xl hover:bg-rose-500/10"
                     >

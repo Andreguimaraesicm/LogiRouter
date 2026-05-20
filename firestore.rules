@@ -18,8 +18,9 @@ service cloud.firestore {
 
     function isMaster() {
       return isSignedIn() && (
+        request.auth.token.email == 'master@frotas.local' ||
         request.auth.token.email == 'andreguimaraesicm@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'master'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'master')
       );
     }
 

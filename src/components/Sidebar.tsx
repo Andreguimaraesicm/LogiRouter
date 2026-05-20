@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/AuthContext';
 
 interface SidebarProps {
   user: UserProfile;
@@ -18,6 +19,7 @@ interface SidebarProps {
 export function Sidebar({ 
   user, onLogout, activeTab, setActiveTab, reportSubTab, setReportSubTab 
 }: SidebarProps) {
+  const { company } = useAuth();
   const [isOpen, setIsOpen] = React.useState(false);
 
   let menuItems = [];
@@ -77,10 +79,18 @@ export function Sidebar({
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/40">
-            <Truck className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-bold text-lg tracking-tight text-white">LogiRoute Pro</span>
+          {company?.logoUrl ? (
+            <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-800 flex items-center justify-center">
+              <img src={company.logoUrl} alt={company.name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/40">
+              <Truck className="w-5 h-5 text-white" />
+            </div>
+          )}
+          <span className="font-bold text-lg tracking-tight text-white line-clamp-1">
+            {company?.name || 'LogiRoute Pro'}
+          </span>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">

@@ -29,20 +29,40 @@ export function ReportsArea() {
   }, [profile]);
 
   const downloadRouteReport = (route: Route) => {
-    const headers = ['Operação', 'Paragem', 'Data/Hora', 'Estado'];
-    const rows = route.stops.map(stop => [
-      stop.name,
-      stop.address,
-      stop.arrivedAt ? new Date(stop.arrivedAt).toLocaleString() : 'Pendente',
-      stop.status
-    ]);
+    const headers = [
+      'Empresa/Cliente',
+      'Morada',
+      'Início do Trabalho (Rota)',
+      'Chegada ao Cliente',
+      'Início Carga/Descarga',
+      'Fim Carga/Descarga',
+      'Saída do Cliente',
+      'Duração Total no Cliente (min)'
+    ];
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const rows = route.stops.map(stop => {
+      const durationStr = stop.departedAt && stop.arrivedAt
+        ? Math.round((new Date(stop.departedAt).getTime() - new Date(stop.arrivedAt).getTime()) / 60000)
+        : '0';
+        
+      return [
+        `"${stop.name.replace(/"/g, '""')}"`,
+        `"${stop.address.replace(/"/g, '""')}"`,
+        route.startedAt ? new Date(route.startedAt).toLocaleString('pt-PT') : 'Não Declarado',
+        stop.arrivedAt ? new Date(stop.arrivedAt).toLocaleString('pt-PT') : 'Não Chegou',
+        stop.opStartedAt ? new Date(stop.opStartedAt).toLocaleString('pt-PT') : 'Não Iniciado',
+        stop.opEndedAt ? new Date(stop.opEndedAt).toLocaleString('pt-PT') : 'Não Finalizado',
+        stop.departedAt ? new Date(stop.departedAt).toLocaleString('pt-PT') : 'Não Saiu',
+        durationStr
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(";")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `relatorio_rota_${route.id.slice(0, 5)}.csv`);
+    link.setAttribute("download", `relatorio_de_rota_${route.id.slice(-6).toUpperCase()}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();

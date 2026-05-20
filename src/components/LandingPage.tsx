@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Truck, Lock, User, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Truck, Lock, User, Loader2, Building } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { cn } from '../lib/utils';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { Company } from '../types';
 
 interface LandingPageProps {
   onLogin: (username: string, pass: string) => Promise<void>;
@@ -15,6 +17,21 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [brandedCompany, setBrandedCompany] = useState<Company | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('c') || params.get('company');
+    
+    if (slug) {
+      const q = query(collection(db, 'companies'), where('slug', '==', slug.toLowerCase()));
+      getDocs(q).then(snap => {
+        if (!snap.empty) {
+          setBrandedCompany({ id: snap.docs[0].id, ...snap.docs[0].data() } as Company);
+        }
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,12 +73,23 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       >
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 rounded-3xl shadow-2xl">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-900/40">
-              <Truck className="w-8 h-8 text-white" />
+            <div className={cn(
+              "w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg overflow-hidden border border-slate-700",
+              brandedCompany?.logoUrl ? "bg-slate-800" : "bg-indigo-600 shadow-indigo-900/40"
+            )}>
+              {brandedCompany?.logoUrl ? (
+                <img src={brandedCompany.logoUrl} alt={brandedCompany.name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+              ) : (
+                <Truck className="w-10 h-10 text-white" />
+              )}
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">FleetFlow Logistics</h1>
+            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
+              {brandedCompany?.name || 'FleetFlow Logistics'}
+            </h1>
             <p className="text-slate-400 text-sm">
-              Gestão Multifrotas e Otimização para Empresas Autorizadas
+              {brandedCompany 
+                ? `Portal de Acesso para Colaboradores e Motoristas`
+                : 'Gestão Multifrotas e Otimização para Empresas Autorizadas'}
             </p>
           </div>
 
@@ -99,7 +127,10 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             <button 
               type="submit"
               disabled={isProcessing}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white font-black py-4 rounded-xl shadow-lg shadow-indigo-900/30 transition-all flex items-center justify-center gap-2 mt-4 uppercase text-xs tracking-widest"
+              className={cn(
+                "w-full text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-4 uppercase text-xs tracking-widest",
+                brandedCompany ? "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/30" : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/30"
+              )}
             >
               {isProcessing ? (
                 <>
@@ -107,14 +138,14 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                   <span>A processar...</span>
                 </>
               ) : (
-                <span>Entrar no Sistema</span>
+                <span>Efectuar Login</span>
               )}
             </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-slate-800 text-center">
             <p className="text-[10px] text-slate-600">
-              © 2026 FleetFlow Logistics. Plataforma Restrita para Empresas Autorizadas.
+              © 2026 {brandedCompany?.name || 'FleetFlow Logistics'}. Plataforma Restrita.
             </p>
           </div>
         </div>

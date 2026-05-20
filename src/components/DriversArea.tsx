@@ -6,7 +6,7 @@ import { UserProfile, Role } from '../types';
 import { useAuth } from '../lib/AuthContext';
 
 export function DriversArea() {
-  const { profile, isMaster, register } = useAuth();
+  const { profile, isMaster, register, deleteUserAccount } = useAuth();
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [newDriver, setNewDriver] = useState({ 
@@ -93,7 +93,14 @@ export function DriversArea() {
             <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
               <button 
                 onClick={async () => {
-                   if(confirm('Apagar motorista?')) await deleteDoc(doc(db, 'users', driver.uid));
+                  if (confirm('Deseja realmente apagar este motorista de forma definitiva do sistema (incluindo acessos de login)?')) {
+                    try {
+                      await deleteUserAccount(driver.uid);
+                      alert('Motorista apagado com sucesso.');
+                    } catch (err: any) {
+                      alert('Erro ao apagar motorista: ' + (err.message || err));
+                    }
+                  }
                 }}
                 className="text-slate-600 hover:text-red-500 transition-colors"
               >

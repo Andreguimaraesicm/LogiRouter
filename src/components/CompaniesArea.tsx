@@ -14,6 +14,8 @@ export function CompaniesArea() {
   
   const [newCompany, setNewCompany] = useState({ 
     name: '',
+    slug: '',
+    logoUrl: '',
     adminUsername: '',
     adminPassword: '',
     adminDisplayName: ''
@@ -28,29 +30,33 @@ export function CompaniesArea() {
   }, []);
 
   const handleAdd = async () => {
-    if (!newCompany.name || !newCompany.adminUsername || !newCompany.adminPassword) return;
+    if (!newCompany.name || !newCompany.adminUsername || !newCompany.adminPassword || !newCompany.slug) {
+      alert('Por favor, preencha todos os campos obrigatórios, incluindo o slug.');
+      return;
+    }
     
     try {
       const companyId = `comp_${Math.random().toString(36).substr(2, 9)}`;
       
       // 1. Create the Admin User in Auth and Firestore
-      // We do this first because we want the UID for the company document
-      // Note: register uses adminAuth internally to avoid logging out current user
       await register(newCompany.adminUsername, newCompany.adminPassword, {
         displayName: newCompany.adminDisplayName || newCompany.adminUsername,
         role: 'admin',
-        companyId: companyId
+        companyId: companyId,
+        slug: newCompany.slug
       });
 
       // 2. Create Company document
       await setDoc(doc(db, 'companies', companyId), {
         name: newCompany.name,
-        adminId: newCompany.adminUsername, // We'll keep username as adminId for now to match UI, or we could find UID
+        slug: newCompany.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        logoUrl: newCompany.logoUrl,
+        adminId: newCompany.adminUsername,
         createdAt: new Date().toISOString()
       });
       
       setIsAdding(false);
-      setNewCompany({ name: '', adminUsername: '', adminPassword: '', adminDisplayName: '' });
+      setNewCompany({ name: '', slug: '', logoUrl: '', adminUsername: '', adminPassword: '', adminDisplayName: '' });
       alert('Empresa e Administrador criados com sucesso!');
     } catch (err: any) {
       console.error(err);
@@ -95,7 +101,21 @@ export function CompaniesArea() {
              <h3 className="text-xl font-bold text-white mb-1">{company.name}</h3>
              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-4">ID: {company.id}</p>
              
-             <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+             <div className="pt-4 border-t border-slate-800 flex items-center justify-between mt-auto">
+                <div>
+                   <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Portal da Empresa</p>
+                   <a 
+                     href={`${window.location.origin}?c=${company.slug}`} 
+                     target="_blank" 
+                     rel="noreferrer"
+                     className="text-xs text-cyan-400 font-bold hover:underline break-all"
+                   >
+                     {company.slug}
+                   </a>
+                </div>
+             </div>
+             
+             <div className="pt-4 border-t border-slate-800 flex items-center justify-between mt-4">
                 <div>
                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Administrador</p>
                    <p className="text-xs text-white font-bold">@{company.adminId}</p>
@@ -124,33 +144,58 @@ export function CompaniesArea() {
               <h3 className="text-xl font-bold text-white uppercase tracking-tight">Registar Empresa</h3>
             </div>
 
-            <div className="space-y-6">
-              <div className="space-y-2">
+            <div className="space-y-4">
+              <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome da Empresa</label>
                 <input 
                   className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all font-bold"
                   value={newCompany.name}
-                  onChange={e => setNewCompany({...newCompany, name: e.target.value})}
+                  onChange={e => {
+                    const name = e.target.value;
+                    const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                    setNewCompany({...newCompany, name, slug});
+                  }}
                   placeholder="Ex: Transportes ABC"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Slug (Domínio)</label>
+                  <input 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-cyan-400 outline-none focus:ring-2 focus:ring-cyan-500 transition-all font-mono"
+                    value={newCompany.slug}
+                    onChange={e => setNewCompany({...newCompany, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')})}
+                    placeholder="ex-transportes-abc"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">URL do Logo</label>
+                  <input 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
+                    value={newCompany.logoUrl}
+                    onChange={e => setNewCompany({...newCompany, logoUrl: e.target.value})}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-slate-800">
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Credenciais do Administrador</p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Credenciais do Administrador</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Utilizador</label>
                     <input 
-                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
                       value={newCompany.adminUsername}
                       onChange={e => setNewCompany({...newCompany, adminUsername: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Palavra-passe</label>
                     <input 
                       type="password"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
                       value={newCompany.adminPassword}
                       onChange={e => setNewCompany({...newCompany, adminPassword: e.target.value})}
                     />
