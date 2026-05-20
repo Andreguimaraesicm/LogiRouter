@@ -100,7 +100,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
   // Paragem form states
   const [newStopName, setNewStopName] = useState('');
   const [newStopAddress, setNewStopAddress] = useState('');
-  const [newRouteStops, setNewRouteStops] = useState<{address: string, name: string, lat?: number, lng?: number}[]>([]);
+  const [newRouteStops, setNewRouteStops] = useState<{id?: string, address: string, name: string, lat?: number, lng?: number}[]>([]);
   
   const [roundTrip, setRoundTrip] = useState(true); // default true: "IDA E VOLTA"
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -308,6 +308,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
       setNewRouteStops([
         ...newRouteStops,
         {
+          id: `stop-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           name: finalName,
           address: result.display_name,
           lat: result.lat,
@@ -668,7 +669,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
               ) : (
                 orderedStops.map((stop, i) => (
                   <div 
-                    key={i} 
+                    key={stop.id || `viewstop-${stop.name}-${i}`} 
                     className="flex items-center justify-between bg-slate-900/50 p-3.5 rounded-2xl border border-slate-800 hover:border-indigo-500/20 transition-all"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -702,7 +703,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
                       )}
                       
                       <button
-                        onClick={() => setNewRouteStops(newRouteStops.filter((_, idx) => idx !== i))}
+                        onClick={() => setNewRouteStops(newRouteStops.filter((stopItem, idx) => stop.id ? stopItem.id !== stop.id : idx !== i))}
                         className="p-1.5 text-slate-650 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -819,7 +820,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
                   }
 
                   return (
-                    <Marker key={i} position={[latVal, lngVal]} icon={createNumIcon(i + 1)}>
+                    <Marker key={stop.id || `marker-${stop.name}-${i}`} position={[latVal, lngVal]} icon={createNumIcon(i + 1)}>
                       <Popup>
                         <div className="text-xs text-slate-850">
                           <p className="font-extrabold text-[#10b981] mb-0.5">Paragem #{i + 1}</p>
@@ -841,7 +842,7 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
                       .filter((c: any) => Array.isArray(c) && c.length >= 2 && !isNaN(Number(c[0])) && !isNaN(Number(c[1])))
                       .map((c: any) => [Number(c[1]), Number(c[0])])
                     }
-                    color="#6366f1"
+                    key={calculatedRoute ? `polyline-${calculatedRoute.geometry.coordinates.length}-${calculatedRoute.distance || 0}` : 'poly-empty'} color="#6366f1"
                     weight={6}
                     opacity={0.8}
                   />
