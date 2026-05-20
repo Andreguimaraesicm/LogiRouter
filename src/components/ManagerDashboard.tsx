@@ -209,7 +209,13 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
         routeNodes.push(startNode);
       }
 
-      const validCoords = routeNodes.filter(s => s.lat !== undefined && s.lng !== undefined) as {lat: number, lng: number}[];
+      const validCoords = routeNodes.filter(s => 
+        s.lat !== undefined && 
+        s.lng !== undefined && 
+        !isNaN(Number(s.lat)) && 
+        !isNaN(Number(s.lng))
+      ) as {lat: number, lng: number}[];
+      
       if (validCoords.length < 2) return;
 
       const matchedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -771,54 +777,78 @@ export function ManagerDashboard({ tollRates, setActiveTab }: ManagerDashboardPr
             </span>
           </div>
 
-          <MapContainer 
-            center={[startPointLat, startPointLng]} 
-            zoom={12} 
-            scrollWheelZoom={true}
-            style={{ height: '100%', width: '100%', minHeight: '520px', flex: 1 }}
-            className="z-0 transition-all rounded-[2.5rem]"
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            
-            {/* Click hook to dynamically redefine Starting point (Garagem) */}
-            <MapClickHandler onMapClick={handleMapClick} />
+          {(() => {
+            const validStartLat = typeof startPointLat === 'number' && !isNaN(startPointLat) ? startPointLat : 38.7223;
+            const validStartLng = typeof startPointLng === 'number' && !isNaN(startPointLng) ? startPointLng : -9.1393;
 
-            {/* Starting Point Marker */}
-            <Marker position={[startPointLat, startPointLng]} icon={startIcon}>
-              <Popup>
-                <div className="text-xs font-bold text-slate-850">
-                  <p className="font-extrabold text-indigo-650 mb-0.5">Ponto de Partida</p>
-                  <p className="max-w-[180px] break-words">{startPointAddress}</p>
-                </div>
-              </Popup>
-            </Marker>
+            return (
+              <MapContainer 
+                center={[validStartLat, validStartLng]} 
+                zoom={12} 
+                scrollWheelZoom={true}
+                style={{ height: '100%', width: '100%', minHeight: '520px', flex: 1 }}
+                className="z-0 transition-all rounded-[2.5rem]"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                
+                {/* Click hook to dynamically redefine Starting point (Garagem) */}
+                <MapClickHandler onMapClick={handleMapClick} />
 
-            {/* Stop Markers */}
-            {orderedStops.map((stop, i) => stop.lat && stop.lng && (
-              <Marker key={i} position={[stop.lat, stop.lng]} icon={createNumIcon(i + 1)}>
-                <Popup>
-                  <div className="text-xs text-slate-850">
-                    <p className="font-extrabold text-[#10b981] mb-0.5">Paragem #{i + 1}</p>
-                    <p className="font-semibold text-slate-800">{stop.name}</p>
-                    <p className="max-w-[180px] break-words text-slate-500 mt-0.5">{stop.address}</p>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                {/* Starting Point Marker */}
+                <Marker position={[validStartLat, validStartLng]} icon={startIcon}>
+                  <Popup>
+                    <div className="text-xs font-bold text-slate-850">
+                      <p className="font-extrabold text-indigo-650 mb-0.5">Ponto de Partida</p>
+                      <p className="max-w-[180px] break-words">{startPointAddress}</p>
+                    </div>
+                  </Popup>
+                </Marker>
 
-            {/* Render Calculated Polyline */}
-            {calculatedRoute && calculatedRoute.geometry && (
-              <Polyline 
-                positions={calculatedRoute.geometry.coordinates.map((c: any) => [c[1], c[0]])}
-                color="#6366f1"
-                weight={6}
-                opacity={0.8}
-              />
-            )}
-          </MapContainer>
+                {/* Stop Markers - Safe mapping to prevent rendering raw text nodes like NaN */}
+                {orderedStops.map((stop, i) => {
+                  const latStr = String(stop.lat || '');
+                  const lngStr = String(stop.lng || '');
+                  const latVal = parseFloat(latStr);
+                  const lngVal = parseFloat(lngStr);
+
+                  if (isNaN(latVal) || isNaN(lngVal)) {
+                    return null;
+                  }
+
+                  return (
+                    <Marker key={i} position={[latVal, lngVal]} icon={createNumIcon(i + 1)}>
+                      <Popup>
+                        <div className="text-xs text-slate-850">
+                          <p className="font-extrabold text-[#10b981] mb-0.5">Paragem #{i + 1}</p>
+                          <p className="font-semibold text-slate-800">{stop.name}</p>
+                          <p className="max-w-[180px] break-words text-slate-500 mt-0.5">{stop.address}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
+                {/* Render Calculated Polyline - safe checking geometries */}
+                {calculatedRoute && 
+                 calculatedRoute.geometry && 
+                 Array.isArray(calculatedRoute.geometry.coordinates) && 
+                 calculatedRoute.geometry.coordinates.length > 0 && (
+                  <Polyline 
+                    positions={calculatedRoute.geometry.coordinates
+                      .filter((c: any) => Array.isArray(c) && c.length >= 2 && !isNaN(Number(c[0])) && !isNaN(Number(c[1])))
+                      .map((c: any) => [Number(c[1]), Number(c[0])])
+                    }
+                    color="#6366f1"
+                    weight={6}
+                    opacity={0.8}
+                  />
+                )}
+              </MapContainer>
+            );
+          })()}
 
           {/* Floating metrics summary inside the map wrapper */}
           <AnimatePresence>
