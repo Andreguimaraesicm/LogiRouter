@@ -19,7 +19,7 @@ interface AuthContextType {
   company: Company | null;
   loading: boolean;
   login: (username: string, pass: string) => Promise<void>;
-  register: (username: string, pass: string, data: any) => Promise<void>;
+  register: (username: string, pass: string, data: any, onStepChange?: (step: string) => void) => Promise<void>;
   deleteUserAccount: (uid: string) => Promise<void>;
   logout: () => Promise<void>;
   isMaster: boolean;
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (username: string, pass: string, data: any) => {
+  const register = async (username: string, pass: string, data: any, onStepChange?: (step: string) => void) => {
     if (!username || !pass) throw new Error('Utilizador e palavra-passe são obrigatórios');
     
     const cleanUsername = username.toLowerCase().trim();
@@ -183,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Check if profile already exists in Firestore to avoid duplicate usernames
     try {
+      onStepChange?.('Verificar se o utilizador já existe...');
       const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
       const snap = await getDocs(q);
       if (!snap.empty) {
@@ -191,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // If a slug is provided, check if it's already taken
       if (data.slug) {
+        onStepChange?.('Verificar se o domínio/slug já está em uso...');
         const qSlug = query(collection(db, 'companies'), where('slug', '==', data.slug.toLowerCase()));
         const snapSlug = await getDocs(qSlug);
         if (!snapSlug.empty) {
@@ -205,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       let authUser;
       try {
+        onStepChange?.('Criar credenciais de acesso seguro...');
         // Use adminAuth to create the user without logging out the current admin
         const cred = await createUserWithEmailAndPassword(adminAuth, email, authPass);
         authUser = cred.user;
@@ -212,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (authErr: any) {
         const errorCode = authErr.code || (authErr.message?.includes('email-already-in-use') ? 'auth/email-already-in-use' : null);
         if (errorCode === 'auth/email-already-in-use') {
+          onStepChange?.('Utilizador já existe no sistema de autenticação. A associar...');
           console.log(`Utilizador ${email} já existe no Firebase Auth. A tentar autenticaçao para associar...`);
           try {
             const cred = await signInWithEmailAndPassword(adminAuth, email, authPass);
@@ -225,6 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
+      onStepChange?.('Finalizar as credenciais administrativas...');
       await signOut(adminAuth);
       
       const userProfile: UserProfile = {
@@ -238,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString()
       } as any;
 
+      onStepChange?.('Criar perfil do utilizador na Base de Dados...');
       await setDoc(doc(db, 'users', authUser.uid), userProfile);
       console.log('Sucesso Firestore.');
     } catch (err: any) {

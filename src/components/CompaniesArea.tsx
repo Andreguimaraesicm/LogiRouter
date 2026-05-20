@@ -12,6 +12,7 @@ export function CompaniesArea() {
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStep, setSubmitStep] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   
   const [newCompany, setNewCompany] = useState({ 
@@ -44,22 +45,26 @@ export function CompaniesArea() {
     }
     
     setIsSubmitting(true);
+    setSubmitStep('Iniciando registo...');
     try {
       const companyId = `comp_${Math.random().toString(36).substr(2, 9)}`;
       
       // 1. Create the Admin User in Auth and Firestore
       await register(cleanUsername, cleanPassword, {
-        displayName: newCompany.adminDisplayName.trim() || cleanUsername,
+        displayName: (newCompany.adminDisplayName || '').trim() || cleanUsername,
         role: 'admin',
         companyId: companyId,
         slug: cleanSlug
+      }, (stepMsg) => {
+        setSubmitStep(stepMsg);
       });
 
       // 2. Create Company document
+      setSubmitStep('Criar ficha de empresa na base de dados...');
       await setDoc(doc(db, 'companies', companyId), {
         name: cleanName,
         slug: cleanSlug,
-        logoUrl: newCompany.logoUrl,
+        logoUrl: newCompany.logoUrl || '',
         adminId: cleanUsername,
         createdAt: new Date().toISOString()
       });
@@ -72,6 +77,7 @@ export function CompaniesArea() {
       setFormError(err.message || 'Erro de comunicação ao registar a empresa.');
     } finally {
       setIsSubmitting(false);
+      setSubmitStep(null);
     }
   };
 
@@ -197,14 +203,13 @@ export function CompaniesArea() {
                     placeholder="ex-transportes-abc"
                   />
                 </div>
-                
-                <div className="space-y-1">
+                             <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Logo URL (Opcional)</label>
                   <input 
                     disabled={isSubmitting}
                     className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-cyan-500 transition-all disabled:opacity-50"
-                    value={newCompany.logoUrl.startsWith('data:') ? 'Imagem carregada de ficheiro' : newCompany.logoUrl}
-                    onChange={e => setNewCompany({...newCompany, logoUrl: e.target.value})}
+                    value={(newCompany.logoUrl || '').startsWith('data:') ? 'Imagem carregada de ficheiro' : (newCompany.logoUrl || '')}
+                    onChange={e => setNewCompany(prev => ({ ...prev, logoUrl: e.target.value }))}
                     placeholder="https://..."
                   />
                 </div>
@@ -237,7 +242,7 @@ export function CompaniesArea() {
                             }
                             const reader = new FileReader();
                             reader.onloadend = () => {
-                              setNewCompany({ ...newCompany, logoUrl: reader.result as string });
+                              setNewCompany(prev => ({ ...prev, logoUrl: reader.result as string }));
                             };
                             reader.readAsDataURL(file);
                           }
@@ -247,7 +252,7 @@ export function CompaniesArea() {
                     {newCompany.logoUrl && (
                       <button 
                         type="button" 
-                        onClick={() => setNewCompany({ ...newCompany, logoUrl: '' })}
+                        onClick={() => setNewCompany(prev => ({ ...prev, logoUrl: '' }))}
                         className="text-[10px] text-rose-500 hover:text-rose-400 font-extrabold uppercase mt-1 block hover:underline"
                       >
                         Limpar logótipo
@@ -285,6 +290,16 @@ export function CompaniesArea() {
               </div>
             </div>
             
+            {submitStep && (
+              <div className="bg-slate-800/50 border border-slate-700/50 text-cyan-400 p-4 rounded-2xl text-xs flex items-center gap-3 mt-6 animate-pulse">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                </span>
+                <span className="font-semibold text-slate-300">{submitStep}</span>
+              </div>
+            )}
+
             <div className="flex gap-4 mt-8">
               <button 
                 type="button"
